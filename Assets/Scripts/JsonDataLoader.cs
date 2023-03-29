@@ -477,6 +477,27 @@ public class JsonDataLoader : MonoBehaviour
         }
     }
 
+    bool isSlideLastInTime(SimaiTimingPoint timing, SimaiNote note)
+    {
+        var slides = timing.noteList.FindAll(o => o.noteType == SimaiNoteType.Slide);
+        slides.Sort((x, y) => {
+            if (Math.Abs(x.slideStartTime - y.slideStartTime) > 1e-6)
+                return Math.Sign(x.slideStartTime - y.slideStartTime);
+            if (Math.Abs(x.slideTime - y.slideTime) > 1e-6)
+                return Math.Sign(x.slideTime - y.slideTime);
+            return Math.Sign((x.slideStartTime + x.slideTime) - (y.slideStartTime + y.slideTime));
+        });
+        int index = slides.FindIndex(o =>
+            o.slideStartTime == note.slideStartTime &&
+            o.slideTime == note.slideTime &&
+            o.startPosition == note.startPosition &&
+            o.noteContent == note.noteContent
+        );
+        if (index < 0) return false;
+
+        return index >= slides.Count - 1;
+    }
+
     void InstantiateWifi(SimaiTimingPoint timing, SimaiNote note, bool isGroupPart, bool isGroupPartEnd)
     {
         var str = note.noteContent.Substring(0, 3);
@@ -606,9 +627,18 @@ public class JsonDataLoader : MonoBehaviour
         if (timing.noteList.Count > 1)
         {
             NDCompo.isEach = true;
-            if (timing.noteList.FindAll(
-                o => o.noteType == SimaiNoteType.Slide).Count
-                > 1)
+            int SlideCount = timing.noteList.FindAll(
+                o => o.noteType == SimaiNoteType.Slide
+            ).Count;
+            #if !BACKTOROOT_EDITION
+            if (SlideCount > 1)
+            #else
+            // It's not a bug if it makes cooler.
+            // See:
+            // - TOKYO REAL WORLD [MEMORY]
+            // - Believe the Rainbow [MASTER]
+            if (SlideCount > 1 && (!isSlideLastInTime(timing, note) || SlideCount % 2 == 0))
+            #endif
             {
                 SliCompo.isEach = true;
                 slide_star.GetComponent<SpriteRenderer>().sprite = customSkin.Star_Each;
