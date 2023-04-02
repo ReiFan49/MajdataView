@@ -66,6 +66,15 @@ public class JsonDataLoader : MonoBehaviour
                     CountNoteCount(timing.noteList);
                     continue;
                 }
+
+                int lastSlideIndex = -1;
+                for (int i = 0; i < timing.noteList.Count; i++)
+                {
+                    var note = timing.noteList[i];
+                    if (note.noteType == SimaiNoteType.Slide)
+                        lastSlideIndex = i;
+                }
+
                 for (int i = 0; i < timing.noteList.Count; i++)
                 {
                     var note = timing.noteList[i];
@@ -156,7 +165,7 @@ public class JsonDataLoader : MonoBehaviour
                     }
                     if (note.noteType == SimaiNoteType.Slide)
                     {
-                        InstantiateStarGroup(timing, note, i, lastNoteTime);    // 星星组
+                        InstantiateStarGroup(timing, note, i, lastNoteTime, i == lastSlideIndex);    // 星星组
                     }
                 }
                 var eachNotes = timing.noteList.FindAll(o => o.noteType != SimaiNoteType.Touch && o.noteType != SimaiNoteType.TouchHold);
@@ -284,7 +293,7 @@ public class JsonDataLoader : MonoBehaviour
         }
     }
 
-    void InstantiateStarGroup(SimaiTimingPoint timing, SimaiNote note, int sort, double lastNoteTime)
+    void InstantiateStarGroup(SimaiTimingPoint timing, SimaiNote note, int sort, double lastNoteTime, bool lastSlideSet)
     {
         int charIntParse(char c)
         {
@@ -468,37 +477,16 @@ public class JsonDataLoader : MonoBehaviour
         {
             if (note.noteContent.Contains('w')) //wifi
             {
-                InstantiateWifi(timing, subSlide[i], i != 0, i == subSlide.Count - 1);
+                InstantiateWifi(timing, subSlide[i], i != 0, i == subSlide.Count - 1, lastSlideSet);
             }
             else
             {
-                InstantiateStar(timing, subSlide[i], i != 0, i == subSlide.Count - 1);
+                InstantiateStar(timing, subSlide[i], i != 0, i == subSlide.Count - 1, lastSlideSet);
             }
         }
     }
 
-    bool isSlideLastInTime(SimaiTimingPoint timing, SimaiNote note)
-    {
-        var slides = timing.noteList.FindAll(o => o.noteType == SimaiNoteType.Slide);
-        slides.Sort((x, y) => {
-            if (Math.Abs(x.slideStartTime - y.slideStartTime) > 1e-6)
-                return Math.Sign(x.slideStartTime - y.slideStartTime);
-            if (Math.Abs(x.slideTime - y.slideTime) > 1e-6)
-                return Math.Sign(x.slideTime - y.slideTime);
-            return Math.Sign((x.slideStartTime + x.slideTime) - (y.slideStartTime + y.slideTime));
-        });
-        int index = slides.FindIndex(o =>
-            o.slideStartTime == note.slideStartTime &&
-            o.slideTime == note.slideTime &&
-            o.startPosition == note.startPosition &&
-            o.noteContent == note.noteContent
-        );
-        if (index < 0) return false;
-
-        return index >= slides.Count - 1;
-    }
-
-    void InstantiateWifi(SimaiTimingPoint timing, SimaiNote note, bool isGroupPart, bool isGroupPartEnd)
+    void InstantiateWifi(SimaiTimingPoint timing, SimaiNote note, bool isGroupPart, bool isGroupPartEnd, bool lastSlideSet)
     {
         var str = note.noteContent.Substring(0, 3);
         var digits = str.Split('w');
@@ -547,9 +535,18 @@ public class JsonDataLoader : MonoBehaviour
         {
             NDCompo.isEach = true;
             NDCompo.isDouble = false;
-            if (timing.noteList.FindAll(
-                o => o.noteType == SimaiNoteType.Slide).Count
-                > 1)
+            int SlideCount = timing.noteList.FindAll(
+                o => o.noteType == SimaiNoteType.Slide
+            ).Count;
+            #if !BACKTOROOT_EDITION
+            if (SlideCount > 1)
+            #else
+            // It's not a bug if it makes cooler.
+            // See:
+            // - TOKYO REAL WORLD [MEMORY]
+            // - Believe the Rainbow [MASTER]
+            if (SlideCount > 1 && (!lastSlideSet || SlideCount % 2 == 0))
+            #endif
             {
                 WifiCompo.isEach = true;
             }
@@ -585,7 +582,7 @@ public class JsonDataLoader : MonoBehaviour
         slideLayer += 5;
     }
 
-    void InstantiateStar(SimaiTimingPoint timing, SimaiNote note, bool isGroupPart, bool isGroupPartEnd)
+    void InstantiateStar(SimaiTimingPoint timing, SimaiNote note, bool isGroupPart, bool isGroupPartEnd, bool lastSlideSet)
     {
 
         var GOnote = Instantiate(starPrefab, notes.transform);
@@ -637,7 +634,7 @@ public class JsonDataLoader : MonoBehaviour
             // See:
             // - TOKYO REAL WORLD [MEMORY]
             // - Believe the Rainbow [MASTER]
-            if (SlideCount > 1 && (!isSlideLastInTime(timing, note) || SlideCount % 2 == 0))
+            if (SlideCount > 1 && (!lastSlideSet || SlideCount % 2 == 0))
             #endif
             {
                 SliCompo.isEach = true;
